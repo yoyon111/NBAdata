@@ -212,6 +212,7 @@ def ai_analysis():
         ])
         
         print(f"🤔 Starting CrewAI analysis for {player_name} vs {team_name}...")
+        print("⏳ This may take 30-60 seconds...")
         
         # Configure Gemini LLM for CrewAI
         gemini_llm = ChatGoogleGenerativeAI(
@@ -362,6 +363,7 @@ FINAL OUTPUT REQUIREMENTS:
             complete_analysis = str(result)
         
         print("✅ CrewAI debate complete!")
+        print(f"🎯 Ready for next analysis request...")
         
         return jsonify({
             "analysis": complete_analysis,
@@ -371,6 +373,7 @@ FINAL OUTPUT REQUIREMENTS:
         
     except Exception as e:
         print(f"❌ CrewAI Analysis error: {e}")
+        print("🔄 Server still running, ready for next request...")
         import traceback
         traceback.print_exc()
         
@@ -398,6 +401,21 @@ if __name__ == '__main__':
         print("\n⚠️  WARNING: Could not load data!")
         print("Please run: python scraper_backend.py")
         print("Then run this Flask app again.\n")
+        exit(1)
     
-    # Run server
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    print("\n" + "="*60)
+    print("🏀 NBA MATCHUP ANALYSIS SERVER")
+    print("="*60)
+    print("✅ Server is running and ready for requests")
+    print("🌐 Available at: http://localhost:5000")
+    print("📊 Endpoints available:")
+    print("   - /api/player/<name>")
+    print("   - /api/defense/<team>")
+    print("   - /api/matchup/<player>/<team>")
+    print("   - /api/ai-analysis (POST)")
+    print("   - /api/status")
+    print("\n💡 Server will keep running until you press Ctrl+C")
+    print("="*60 + "\n")
+    
+    # Run server (will stay running)
+    app.run(debug=False, host='0.0.0.0', port=5000, use_reloader=False)
