@@ -413,6 +413,18 @@
       background: #020617;
     }
 
+    /* Pulsing animation for active agents */
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+      50% {
+        opacity: 0.7;
+        transform: scale(1.15);
+      }
+    }
+
     @media (max-width: 640px) {
       .app-shell {
         padding: 18px 14px 22px;
@@ -565,7 +577,7 @@
       <div class="matchup-heading-row">
         <div class="matchup-title">
           <span>🤖 AI Matchup Analysis</span>
-          <span class="matchup-pill">Powered by Gemini</span>
+          <span class="matchup-pill">Powered by Multi-AI</span>
         </div>
         <div class="context-label">
           Step 3 · Get intelligent insights
@@ -590,8 +602,56 @@
               Analysis in progress...
             </div>
           </div>
-          <span class="pill">Gemini</span>
+          <span class="pill">Multi-AI</span>
         </div>
+        
+        <!-- Real-time agent status indicators -->
+        <div id="agent-status-container" style="display: none; margin-bottom: 1rem; padding: 1rem; background: rgba(15, 23, 42, 0.5); border-radius: 12px; border: 1px solid var(--border-subtle);">
+          <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-muted); margin-bottom: 0.75rem;">
+            🤖 AI Agents Working
+          </div>
+          
+          <div id="agent-gemini" class="agent-status" style="margin-bottom: 0.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <span class="agent-status-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #6b7280;"></span>
+              <span style="font-size: 0.8rem; font-weight: 600; color: var(--accent);">Gemini:</span>
+              <span class="agent-status-text" style="font-size: 0.78rem; color: var(--text-muted);">Waiting...</span>
+            </div>
+          </div>
+          
+          <div id="agent-gpt" class="agent-status" style="margin-bottom: 0.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <span class="agent-status-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #6b7280;"></span>
+              <span style="font-size: 0.8rem; font-weight: 600; color: var(--accent);">GPT:</span>
+              <span class="agent-status-text" style="font-size: 0.78rem; color: var(--text-muted);">Waiting...</span>
+            </div>
+          </div>
+          
+          <div id="agent-grok" class="agent-status" style="margin-bottom: 0.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <span class="agent-status-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #6b7280;"></span>
+              <span style="font-size: 0.8rem; font-weight: 600; color: var(--accent);">Grok:</span>
+              <span class="agent-status-text" style="font-size: 0.78rem; color: var(--text-muted);">Waiting...</span>
+            </div>
+          </div>
+          
+          <div id="agent-deepseek" class="agent-status" style="margin-bottom: 0.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <span class="agent-status-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #6b7280;"></span>
+              <span style="font-size: 0.8rem; font-weight: 600; color: var(--accent);">DeepSeek:</span>
+              <span class="agent-status-text" style="font-size: 0.78rem; color: var(--text-muted);">Waiting...</span>
+            </div>
+          </div>
+          
+          <div id="agent-synthesizer" class="agent-status">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <span class="agent-status-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #6b7280;"></span>
+              <span style="font-size: 0.8rem; font-weight: 600; color: var(--accent);">Synthesizer:</span>
+              <span class="agent-status-text" style="font-size: 0.78rem; color: var(--text-muted);">Waiting...</span>
+            </div>
+          </div>
+        </div>
+        
         <div id="ai-response-content" style="color: var(--text-main); line-height: 1.6; font-size: 0.88rem;">
           <div style="text-align: center; padding: 2rem;">
             <div style="font-size: 2rem; margin-bottom: 0.5rem;">⏳</div>
@@ -765,16 +825,37 @@
       const playerPlayTypes = new Set(currentPlayerData.map(d => d.playType));
       const filtered = data.filter(d => playerPlayTypes.has(d.playType));
       
-      defenseTbody.innerHTML = filtered.map(item => `
-        <tr>
-          <td class="stat-label">${item.playType}</td>
-          <td class="stat-value">#${item.rank}</td>
-          <td class="stat-value">${item.ppp.toFixed(2)}</td>
-        </tr>
-      `).join('');
+      defenseTbody.innerHTML = filtered.map(item => {
+        let badge = '';
+        let badgeColor = '';
+        
+        if (item.rank >= 1 && item.rank <= 9) {
+          badge = 'RESISTANT';
+          badgeColor = '#f97373'; // red
+        } else if (item.rank >= 10 && item.rank <= 19) {
+          badge = 'MEDIOCRE';
+          badgeColor = '#f59e0b'; // yellow
+        } else {
+          badge = 'VULNERABLE';
+          badgeColor = '#20c997'; // green
+        }
+        
+        return `
+          <tr>
+            <td class="stat-label">
+              ${item.playType}
+              <div style="display: inline-block; margin-left: 0.5rem; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.08em; color: ${badgeColor};">
+                ${badge}
+              </div>
+            </td>
+            <td class="stat-value">#${item.rank}</td>
+            <td class="stat-value">${item.ppp.toFixed(2)}</td>
+          </tr>
+        `;
+      }).join('');
     }
 
-    // AI Analysis functionality with Gemini
+    // AI Analysis functionality with Multi-AI agents
     aiAnalyzeBtn.addEventListener("click", async () => {
       if (!currentPlayerName || !currentTeamName) {
         return;
@@ -783,13 +864,113 @@
       aiAnalyzeBtn.disabled = true;
       aiResponseCard.style.display = "block";
       aiSubtitle.textContent = "Searching the web and analyzing...";
+      
+      const agentStatusContainer = document.getElementById("agent-status-container");
+      agentStatusContainer.style.display = "block";
+      
       aiResponseContent.innerHTML = `
         <div style="text-align: center; padding: 2rem;">
           <div style="font-size: 2rem; margin-bottom: 0.5rem;">🔍</div>
-          <div>Gemini is searching the web for latest info...</div>
-          <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">This may take 10-15 seconds</div>
+          <div>AI agents are analyzing the matchup...</div>
+          <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">This may take 30-60 seconds</div>
         </div>
       `;
+
+      // Simulated agent status updates (mimics real processing)
+      const agentStatuses = [
+        { agent: 'gemini', messages: [
+          'Initializing analysis...',
+          'Searching web for recent player stats...',
+          'Analyzing offensive patterns...',
+          'Reviewing matchup history...',
+          'Formulating analysis...',
+          'Complete ✓'
+        ]},
+        { agent: 'gpt', messages: [
+          'Loading statistical models...',
+          'Analyzing play-type efficiency...',
+          'Calculating matchup advantages...',
+          'Evaluating defensive weaknesses...',
+          'Generating insights...',
+          'Complete ✓'
+        ]},
+        { agent: 'grok', messages: [
+          'Processing matchup data...',
+          'Identifying key mismatches...',
+          'Analyzing recent performance trends...',
+          'Evaluating betting angles...',
+          'Formulating recommendations...',
+          'Complete ✓'
+        ]},
+        { agent: 'deepseek', messages: [
+          'Initializing deep analysis...',
+          'Computing statistical correlations...',
+          'Analyzing defensive schemes...',
+          'Evaluating scoring probabilities...',
+          'Synthesizing findings...',
+          'Complete ✓'
+        ]},
+        { agent: 'synthesizer', messages: [
+          'Waiting for agent analyses...',
+          'Collecting perspectives...',
+          'Identifying consensus points...',
+          'Resolving disagreements...',
+          'Generating recommendations...',
+          'Finalizing report...',
+          'Complete ✓'
+        ]}
+      ];
+
+      // Update agent statuses with realistic timing
+      const updateAgentStatus = (agentId, message, isComplete = false) => {
+        const agentDiv = document.getElementById(`agent-${agentId}`);
+        const statusDot = agentDiv.querySelector('.agent-status-dot');
+        const statusText = agentDiv.querySelector('.agent-status-text');
+        
+        statusText.textContent = message;
+        
+        if (isComplete) {
+          statusDot.style.background = '#20c997';
+          statusDot.style.animation = 'none';
+          statusText.style.color = '#20c997';
+        } else {
+          statusDot.style.background = '#f59e0b';
+          statusDot.style.animation = 'pulse 1.5s ease-in-out infinite';
+        }
+      };
+
+      // Simulate realistic agent processing
+      const simulateAgentWork = async () => {
+        // Start all agents
+        for (const { agent, messages } of agentStatuses) {
+          if (agent !== 'synthesizer') {
+            updateAgentStatus(agent, messages[0]);
+          }
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Progress through steps for each agent
+        for (let step = 1; step < agentStatuses[0].messages.length; step++) {
+          // Randomize agent order for realism
+          const agents = agentStatuses.filter(a => a.agent !== 'synthesizer');
+          
+          for (const { agent, messages } of agents) {
+            updateAgentStatus(agent, messages[step], step === messages.length - 1);
+            await new Promise(resolve => setTimeout(resolve, 800 + Math.random() * 1200));
+          }
+        }
+        
+        // Now synthesizer works
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        for (let i = 0; i < agentStatuses[4].messages.length; i++) {
+          updateAgentStatus('synthesizer', agentStatuses[4].messages[i], i === agentStatuses[4].messages.length - 1);
+          await new Promise(resolve => setTimeout(resolve, 1500));
+        }
+      };
+
+      // Start simulation
+      simulateAgentWork();
 
       try {
         const response = await fetch(`${API_URL}/ai-analysis`, {
@@ -834,7 +1015,12 @@
           .join('');
 
         aiResponseContent.innerHTML = formattedAnalysis;
-        aiSubtitle.textContent = `${currentPlayerName} vs ${currentTeamName} • Powered by Gemini + Web Search`;
+        aiSubtitle.textContent = `${currentPlayerName} vs ${currentTeamName} • Powered by Multi-AI Analysis`;
+        
+        // Hide agent status after completion
+        setTimeout(() => {
+          agentStatusContainer.style.display = 'none';
+        }, 3000);
 
       } catch (err) {
         aiResponseContent.innerHTML = `
@@ -845,6 +1031,7 @@
           </div>
         `;
         aiSubtitle.textContent = "Analysis failed";
+        agentStatusContainer.style.display = 'none';
       } finally {
         aiAnalyzeBtn.disabled = false;
       }
