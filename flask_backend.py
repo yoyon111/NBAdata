@@ -176,6 +176,63 @@ Focus on:
     except Exception as e:
         return f"Search failed: {str(e)}"
 
+@tool("Search Player Statistics")
+def search_player_statistics(player_name: str) -> str:
+    """Search the web for detailed player statistics including shooting percentages, 
+    usage rate, efficiency metrics, recent game logs, and advanced stats.
+    Use this to get comprehensive statistical analysis beyond basic play-type data."""
+    try:
+        search_llm = ChatGoogleGenerativeAI(
+            model="gemini-2.5-flash",
+            google_api_key=GEMINI_API_KEY,
+            temperature=0.2
+        )
+        
+        prompt = f"""Search the web for comprehensive statistics about NBA player: {player_name}
+
+Find and summarize (in 3-4 sentences):
+- Current season averages (PPG, APG, RPG, FG%, 3P%, FT%)
+- Advanced metrics (PER, TS%, usage rate, offensive rating)
+- Recent performance trends (last 10 games)
+- Shooting splits and efficiency data
+- Any notable statistical patterns or strengths
+
+Be specific with numbers and percentages."""
+        
+        response = search_llm.invoke(prompt)
+        return response.content
+    except Exception as e:
+        return f"Player stats search failed: {str(e)}"
+
+@tool("Search Team Defense Statistics")
+def search_team_defense_statistics(team_name: str) -> str:
+    """Search the web for detailed team defensive statistics including defensive rating,
+    opponent shooting percentages, defensive schemes, and recent defensive performance.
+    Use this to understand how well a team defends against different play styles."""
+    try:
+        search_llm = ChatGoogleGenerativeAI(
+            model="gemini-2.0-flash-exp",
+            google_api_key=GEMINI_API_KEY,
+            temperature=0.2
+        )
+        
+        prompt = f"""Search the web for comprehensive defensive statistics about NBA team: {team_name}
+
+Find and summarize (in 3-4 sentences):
+- Defensive rating and league ranking
+- Opponent field goal percentage and 3-point percentage allowed
+- Points allowed per game and defensive efficiency
+- Defensive schemes and strategies (zone, switching, drop coverage, etc.)
+- Recent defensive performance trends
+- Key defensive players and their impact
+
+Be specific with numbers and rankings."""
+        
+        response = search_llm.invoke(prompt)
+        return response.content
+    except Exception as e:
+        return f"Team defense search failed: {str(e)}"
+
 @tool("Analyze Statistical Matchup")
 def analyze_statistical_matchup(player_stats: str, defense_stats: str) -> str:
     """Analyze the statistical matchup between player offense and team defense.
@@ -230,24 +287,24 @@ def ai_analysis():
         )
         llm_lineup.append("Gemini 2.5 Flash")
         
-        # Analyst 2: OpenAI GPT-4o-mini (affordable)
+        # Analyst 2: OpenAI GPT-5.2
         if OPENAI_API_KEY and OPENAI_API_KEY != 'not-needed':
             llm_openai = LLM(
-                model="openai/gpt-4o-mini",
+                model="openai/gpt-5.2",
                 api_key=OPENAI_API_KEY
             )
-            llm_lineup.append("GPT-4o-mini")
+            llm_lineup.append("GPT-5.2")
         else:
             llm_openai = llm_gemini
             llm_lineup.append("Gemini (no OpenAI key)")
         
-        # Analyst 3: Grok (you have Premium+!)
+        # Analyst 3: Grok 4.1 Fast Reasoning
         if XAI_API_KEY:
             llm_grok = LLM(
-                model="xai/grok-beta",
+                model="xai/grok-4-1-fast-reasoning",
                 api_key=XAI_API_KEY
             )
-            llm_lineup.append("Grok (xAI)")
+            llm_lineup.append("Grok 4.1 Fast Reasoning")
         else:
             llm_grok = llm_gemini
             llm_lineup.append("Gemini (no Grok key)")
@@ -269,16 +326,21 @@ def ai_analysis():
         if len(set(llm_lineup)) == 1:
             print(f"💡 Tip: Add OPENAI_API_KEY, XAI_API_KEY, or DEEPSEEK_API_KEY for diverse perspectives!")
         
-        # Define 4 Agents - each using a different LLM
+        # Define 4 Agents - each using a different LLM with ENHANCED TOOLS
         gemini_analyst = Agent(
             role='gemini sports analyst',
             goal=f'Provide an objective analysis of {player_name} vs {team_name} matchup',
             backstory=f"""You are a sports analyst examining the {player_name} vs {team_name} matchup. 
-            Analyze the statistics objectively and provide your honest assessment. Look at the data, 
-            search for recent performance if needed, and share your genuine analysis.""",
+            You have access to web search tools to find the latest statistics, matchup history, and trends.
+            Use these tools actively to gather comprehensive data before forming your analysis.""",
             verbose=True,
             allow_delegation=False,
-            tools=[search_recent_nba_info, analyze_statistical_matchup],
+            tools=[
+                search_recent_nba_info,
+                search_player_statistics,
+                search_team_defense_statistics,
+                analyze_statistical_matchup
+            ],
             llm=llm_gemini
         )
         
@@ -286,11 +348,16 @@ def ai_analysis():
             role='gpt sports analyst',
             goal=f'Provide an independent analysis of {player_name} vs {team_name} matchup',
             backstory=f"""You are a sports analyst examining the {player_name} vs {team_name} matchup. 
-            Analyze the statistics objectively and provide your honest assessment. Look at the data 
-            and share what the evidence tells you.""",
+            You have access to web search tools to find detailed statistics and matchup data.
+            Gather comprehensive data using your tools before providing your analysis.""",
             verbose=True,
             allow_delegation=False,
-            tools=[search_recent_nba_info, analyze_statistical_matchup],
+            tools=[
+                search_recent_nba_info,
+                search_player_statistics,
+                search_team_defense_statistics,
+                analyze_statistical_matchup
+            ],
             llm=llm_openai
         )
         
@@ -298,11 +365,16 @@ def ai_analysis():
             role='grok sports analyst',
             goal=f'Provide a bold, unfiltered analysis of {player_name} vs {team_name} matchup',
             backstory=f"""You are a sports analyst examining the {player_name} vs {team_name} matchup. 
-            Give your honest, straightforward take. Don't sugarcoat it. Look at the data and tell it 
-            like it is.""",
+            You have web search tools to find the real data. Use them to get the facts, then give your 
+            honest, straightforward take. Don't sugarcoat it.""",
             verbose=True,
             allow_delegation=False,
-            tools=[search_recent_nba_info, analyze_statistical_matchup],
+            tools=[
+                search_recent_nba_info,
+                search_player_statistics,
+                search_team_defense_statistics,
+                analyze_statistical_matchup
+            ],
             llm=llm_grok
         )
         
@@ -310,11 +382,16 @@ def ai_analysis():
             role='deepseek sports analyst',
             goal=f'Provide a thorough technical analysis of {player_name} vs {team_name} matchup',
             backstory=f"""You are a sports analyst examining the {player_name} vs {team_name} matchup. 
-            Focus on the technical details and statistical patterns. Provide a comprehensive, 
-            data-driven assessment.""",
+            You have access to web search tools for detailed statistical analysis. Use these tools to 
+            gather comprehensive data and identify deep patterns.""",
             verbose=True,
             allow_delegation=False,
-            tools=[search_recent_nba_info, analyze_statistical_matchup],
+            tools=[
+                search_recent_nba_info,
+                search_player_statistics,
+                search_team_defense_statistics,
+                analyze_statistical_matchup
+            ],
             llm=llm_deepseek
         )
         
@@ -326,7 +403,11 @@ def ai_analysis():
             confident recommendations with reasoning.""",
             verbose=True,
             allow_delegation=False,
-            tools=[search_recent_nba_info],
+            tools=[
+                search_recent_nba_info,
+                search_player_statistics,
+                search_team_defense_statistics
+            ],
             llm=llm_gemini
         )
         
@@ -334,11 +415,16 @@ def ai_analysis():
         matchup_context = f"""
 MATCHUP: {player_name} vs {team_name}
 
-PLAYER OFFENSIVE STATS:
-{player_stats_text}
+BASELINE PLAY-TYPE STATS (from cached data):
+Player Offensive Stats: {player_stats_text}
+Team Defensive Stats: {defense_stats_text}
 
-TEAM DEFENSIVE STATS:
-{defense_stats_text}
+IMPORTANT: These baseline stats are just a starting point. You MUST use your search tools to:
+1. Find current season averages and advanced metrics for {player_name}
+2. Research {team_name}'s defensive rating and schemes
+3. Look for recent performance trends and injuries
+
+Do NOT rely only on the baseline stats above - actively search for comprehensive data!
 """
         
         debate_task = Task(
@@ -347,49 +433,53 @@ TEAM DEFENSIVE STATS:
 ANALYSIS INSTRUCTIONS:
 Four independent AI analysts will each provide their honest analysis of this matchup.
 
+ALL ANALYSTS MUST:
+- Use the search_player_statistics tool to find detailed stats on {player_name}
+- Use the search_team_defense_statistics tool to research {team_name}'s defense
+- Use the search_recent_nba_info tool for injuries, trends, and recent form
+- Combine ALL this data with the baseline play-type stats provided
+
 Gemini Analyst:
-- Analyze the matchup objectively
-- Search for recent player/team performance data
-- Share your genuine assessment
+- Search for comprehensive player and team data
+- Analyze the complete statistical picture objectively
+- Provide data-driven insights
 
 GPT Analyst:
-- Provide your independent systematic analysis
-- Look for statistical patterns and trends
-- Give your honest data-driven take
+- Independently research player stats and team defense
+- Look for statistical patterns and correlations
+- Give systematic, evidence-based analysis
 
 Grok Analyst:
-- Give your bold, unfiltered analysis
-- Don't hold back - tell it like you see it
-- Be direct about strengths and weaknesses
+- Search for the real numbers and recent performance
+- Give your bold, unfiltered take based on the data
+- Be direct about what the stats actually show
 
 DeepSeek Analyst:
-- Examine the matchup from a technical perspective
-- Focus on deep statistical patterns
-- Provide thorough, analytical insights
+- Conduct thorough statistical research
+- Analyze advanced metrics and defensive schemes
+- Provide deep technical insights
 
 Betting Synthesizer:
 - Review all four AI analyses
 - Identify consensus and disagreements
 - Provide 2-3 specific betting recommendations with confidence levels
 
-Each analyst works independently. No predetermined biases.
-
 FINAL OUTPUT REQUIREMENTS:
-- Summary of each AI's key findings
+- Summary of each AI's key findings (including what stats they found)
 - Areas of consensus vs. disagreement
 - 2-3 specific betting recommendations  
 - Confidence levels (HIGH/MEDIUM/LOW) with reasoning""",
             agent=betting_synthesizer,
             expected_output="""A comprehensive betting analysis that includes:
-1. Gemini's analysis and key insights
-2. GPT's analysis and key insights
-3. Grok's analysis and key insights
-4. DeepSeek's analysis and key insights
+1. Gemini's analysis with specific stats found via web search
+2. GPT's analysis with specific stats found via web search
+3. Grok's analysis with specific stats found via web search
+4. DeepSeek's analysis with specific stats found via web search
 5. Points of agreement between the AIs
 6. Points of disagreement between the AIs
 7. 2-3 specific betting recommendations (player props, totals, spreads)
 8. Confidence levels with clear reasoning for each recommendation
-9. Final synthesis explaining how the four perspectives informed the decision"""
+9. Final synthesis explaining how web-researched data informed the decision"""
         )
         
         # Create the Crew with all 4 AI analysts + synthesizer
@@ -402,7 +492,7 @@ FINAL OUTPUT REQUIREMENTS:
         )
         
         # Execute the crew
-        print("🚀 Crew kickoff - agents are debating...")
+        print("🚀 Crew kickoff - agents are researching and debating...")
         result = analysis_crew.kickoff()
         
         # Extract the final output
