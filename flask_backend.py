@@ -12,11 +12,14 @@ from playerstyles1 import normalize_text
 app = Flask(__name__)
 CORS(app)
 
-# Configure Gemini API
+# Configure API Keys
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', 'YOUR_API_KEY_HERE')
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
+XAI_API_KEY = os.environ.get('XAI_API_KEY', '')
+DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY', '')
 
 # Disable OpenAI requirement for CrewAI
-os.environ['OPENAI_API_KEY'] = 'not-needed'
+os.environ['OPENAI_API_KEY'] = OPENAI_API_KEY or 'not-needed'
 
 # Cache storage - will be loaded from JSON files
 offensive_cache = {}
@@ -211,77 +214,120 @@ def ai_analysis():
             for s in sorted(defense_stats, key=lambda x: x['rank'])
         ])
         
-        print(f"🤔 Starting CrewAI analysis for {player_name} vs {team_name}...")
+        print(f"🤖 Starting CrewAI analysis for {player_name} vs {team_name}...")
         print("⏳ This may take 30-60 seconds...")
         
-        # Configure Gemini LLM for CrewAI
-        gemini_llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash",
-            google_api_key=GEMINI_API_KEY,
-            temperature=0.7
-        )
-        
-        # Also set as default LLM to prevent OpenAI calls
-        os.environ['OPENAI_MODEL_NAME'] = 'gpt-4'  # Dummy value
-        
-        # Create a function LLM wrapper to ensure Gemini is always used
+        # Configure 4 different LLMs for maximum diversity
         from crewai import LLM
-        gemini_wrapper = LLM(
+        
+        # Track which LLMs we're using
+        llm_lineup = []
+        
+        # Analyst 1: Gemini 2.5 Flash (FREE - 1,500 req/day)
+        llm_gemini = LLM(
             model="gemini/gemini-2.5-flash",
             api_key=GEMINI_API_KEY
         )
+        llm_lineup.append("Gemini 2.5 Flash")
         
-        # Define Agents with debate-focused personalities
-        offensive_specialist = Agent(
-            role='offensive analytics specialist',
-            goal=f'Advocate for {player_name}\'s scoring potential and defend your position in debate',
-            backstory=f"""You are an offensive-minded analyst in a live debate about {player_name} vs {team_name}. 
-            You believe in the player's ability to score. You actively listen to counter-arguments and respond 
-            with evidence. If the defensive analyst makes a good point, acknowledge it but find counter-evidence. 
-            You're in a conversation, not writing a report. Be conversational, challenge claims, ask questions.""",
+        # Analyst 2: OpenAI GPT-4o-mini (affordable)
+        if OPENAI_API_KEY and OPENAI_API_KEY != 'not-needed':
+            llm_openai = LLM(
+                model="openai/gpt-4o-mini",
+                api_key=OPENAI_API_KEY
+            )
+            llm_lineup.append("GPT-4o-mini")
+        else:
+            llm_openai = llm_gemini
+            llm_lineup.append("Gemini (no OpenAI key)")
+        
+        # Analyst 3: Grok (you have Premium+!)
+        if XAI_API_KEY:
+            llm_grok = LLM(
+                model="xai/grok-beta",
+                api_key=XAI_API_KEY
+            )
+            llm_lineup.append("Grok (xAI)")
+        else:
+            llm_grok = llm_gemini
+            llm_lineup.append("Gemini (no Grok key)")
+        
+        # Analyst 4: DeepSeek V3 (super cheap)
+        if DEEPSEEK_API_KEY:
+            llm_deepseek = LLM(
+                model="deepseek/deepseek-chat",
+                api_key=DEEPSEEK_API_KEY
+            )
+            llm_lineup.append("DeepSeek V3")
+        else:
+            llm_deepseek = llm_gemini
+            llm_lineup.append("Gemini (no DeepSeek key)")
+        
+        manager_llm = llm_gemini  # Gemini manages the debate
+        
+        print(f"🤖 AI Panel: {' | '.join(llm_lineup)}")
+        if len(set(llm_lineup)) == 1:
+            print(f"💡 Tip: Add OPENAI_API_KEY, XAI_API_KEY, or DEEPSEEK_API_KEY for diverse perspectives!")
+        
+        # Define 4 Agents - each using a different LLM
+        gemini_analyst = Agent(
+            role='gemini sports analyst',
+            goal=f'Provide an objective analysis of {player_name} vs {team_name} matchup',
+            backstory=f"""You are a sports analyst examining the {player_name} vs {team_name} matchup. 
+            Analyze the statistics objectively and provide your honest assessment. Look at the data, 
+            search for recent performance if needed, and share your genuine analysis.""",
             verbose=True,
-            allow_delegation=True,
+            allow_delegation=False,
             tools=[search_recent_nba_info, analyze_statistical_matchup],
-            llm=gemini_wrapper
+            llm=llm_gemini
         )
         
-        defensive_specialist = Agent(
-            role='defensive strategy analyst',
-            goal=f'Advocate for {team_name}\'s defensive ability and challenge offensive claims',
-            backstory=f"""You are a defensive strategist in a live debate about {player_name} vs {team_name}. 
-            You believe the defense can contain scoring. You actively challenge the offensive analyst's claims. 
-            When they cite stats, you find counter-stats. When they're optimistic, you provide reality checks. 
-            You're in a conversation, not writing a report. Be conversational, push back on weak arguments.""",
+        gpt_analyst = Agent(
+            role='gpt sports analyst',
+            goal=f'Provide an independent analysis of {player_name} vs {team_name} matchup',
+            backstory=f"""You are a sports analyst examining the {player_name} vs {team_name} matchup. 
+            Analyze the statistics objectively and provide your honest assessment. Look at the data 
+            and share what the evidence tells you.""",
             verbose=True,
-            allow_delegation=True,
+            allow_delegation=False,
             tools=[search_recent_nba_info, analyze_statistical_matchup],
-            llm=gemini_wrapper
+            llm=llm_openai
         )
         
-        neutral_analyst = Agent(
-            role='neutral statistical moderator',
-            goal='Moderate the debate and provide objective statistical truth',
-            backstory="""You are the moderator of this debate. When the offensive and defensive analysts make 
-            claims, you fact-check them. You ask them to clarify vague statements. You point out when someone 
-            is cherry-picking data. You're not writing a report - you're moderating a live discussion. 
-            Ask questions, request evidence, call out bias.""",
+        grok_analyst = Agent(
+            role='grok sports analyst',
+            goal=f'Provide a bold, unfiltered analysis of {player_name} vs {team_name} matchup',
+            backstory=f"""You are a sports analyst examining the {player_name} vs {team_name} matchup. 
+            Give your honest, straightforward take. Don't sugarcoat it. Look at the data and tell it 
+            like it is.""",
             verbose=True,
-            allow_delegation=True,
+            allow_delegation=False,
             tools=[search_recent_nba_info, analyze_statistical_matchup],
-            llm=gemini_wrapper
+            llm=llm_grok
         )
         
-        betting_strategist = Agent(
-            role='sports betting decision maker',
-            goal='Listen to the full debate and make the final betting call',
-            backstory="""You are listening to this debate and will make the final betting recommendation. 
-            You can ask any analyst follow-up questions. You want to understand their reasoning fully 
-            before making your call. You're decisive but thoughtful. You translate debate conclusions 
-            into specific betting recommendations.""",
+        deepseek_analyst = Agent(
+            role='deepseek sports analyst',
+            goal=f'Provide a thorough technical analysis of {player_name} vs {team_name} matchup',
+            backstory=f"""You are a sports analyst examining the {player_name} vs {team_name} matchup. 
+            Focus on the technical details and statistical patterns. Provide a comprehensive, 
+            data-driven assessment.""",
             verbose=True,
-            allow_delegation=True,
+            allow_delegation=False,
+            tools=[search_recent_nba_info, analyze_statistical_matchup],
+            llm=llm_deepseek
+        )
+        
+        betting_synthesizer = Agent(
+            role='betting recommendation synthesizer',
+            goal='Synthesize all four analyses into actionable betting recommendations',
+            backstory="""You listen to analyses from Gemini, GPT, Grok, and DeepSeek. Synthesize their 
+            insights into clear betting recommendations. Note where they agree/disagree. Make specific, 
+            confident recommendations with reasoning.""",
+            verbose=True,
+            allow_delegation=False,
             tools=[search_recent_nba_info],
-            llm=gemini_wrapper
+            llm=llm_gemini
         )
         
         # Single collaborative debate task
@@ -298,54 +344,60 @@ TEAM DEFENSIVE STATS:
         debate_task = Task(
             description=f"""{matchup_context}
 
-DEBATE INSTRUCTIONS:
-You are all participating in a collaborative analysis debate. This is a CONVERSATION, not separate reports.
+ANALYSIS INSTRUCTIONS:
+Four independent AI analysts will each provide their honest analysis of this matchup.
 
-Offensive Specialist:
-- Start by making your case for why {player_name} will succeed
-- Search for recent performance data
-- Be prepared to defend your claims when challenged
+Gemini Analyst:
+- Analyze the matchup objectively
+- Search for recent player/team performance data
+- Share your genuine assessment
 
-Defensive Specialist:
-- Listen to the offensive case and challenge weak points
-- Search for counter-evidence
-- Make your case for how {team_name} will contain {player_name}
+GPT Analyst:
+- Provide your independent systematic analysis
+- Look for statistical patterns and trends
+- Give your honest data-driven take
 
-Neutral Analyst (Moderator):
-- Fact-check claims from both sides
-- Ask clarifying questions when arguments are vague
-- Request additional evidence when needed
-- Keep the debate focused on data
+Grok Analyst:
+- Give your bold, unfiltered analysis
+- Don't hold back - tell it like you see it
+- Be direct about strengths and weaknesses
 
-Betting Strategist:
-- Listen to the full debate
-- Ask follow-up questions to any analyst
-- Synthesize the discussion into betting recommendations
-- Make your final call with confidence levels
+DeepSeek Analyst:
+- Examine the matchup from a technical perspective
+- Focus on deep statistical patterns
+- Provide thorough, analytical insights
 
-The debate should flow naturally. Challenge each other. Respond to points made. 
-Search for evidence as needed. Come to a collaborative conclusion.
+Betting Synthesizer:
+- Review all four AI analyses
+- Identify consensus and disagreements
+- Provide 2-3 specific betting recommendations with confidence levels
+
+Each analyst works independently. No predetermined biases.
 
 FINAL OUTPUT REQUIREMENTS:
-- Clear summary of the debate's key points
-- 2-3 specific betting recommendations
+- Summary of each AI's key findings
+- Areas of consensus vs. disagreement
+- 2-3 specific betting recommendations  
 - Confidence levels (HIGH/MEDIUM/LOW) with reasoning""",
-            agent=betting_strategist,
+            agent=betting_synthesizer,
             expected_output="""A comprehensive betting analysis that includes:
-1. Summary of offensive arguments and evidence
-2. Summary of defensive counter-arguments and evidence  
-3. Key statistical insights from neutral analysis
-4. 2-3 specific betting recommendations (player props, totals, etc.)
-5. Confidence levels with clear reasoning
-6. Explanation of how the debate informed the final decision"""
+1. Gemini's analysis and key insights
+2. GPT's analysis and key insights
+3. Grok's analysis and key insights
+4. DeepSeek's analysis and key insights
+5. Points of agreement between the AIs
+6. Points of disagreement between the AIs
+7. 2-3 specific betting recommendations (player props, totals, spreads)
+8. Confidence levels with clear reasoning for each recommendation
+9. Final synthesis explaining how the four perspectives informed the decision"""
         )
         
-        # Create the Crew
+        # Create the Crew with all 4 AI analysts + synthesizer
         analysis_crew = Crew(
-            agents=[offensive_specialist, defensive_specialist, neutral_analyst, betting_strategist],
+            agents=[gemini_analyst, gpt_analyst, grok_analyst, deepseek_analyst, betting_synthesizer],
             tasks=[debate_task],
             process=Process.hierarchical,
-            manager_llm=gemini_wrapper,
+            manager_llm=manager_llm,
             verbose=True
         )
         
